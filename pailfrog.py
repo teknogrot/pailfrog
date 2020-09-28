@@ -18,16 +18,16 @@ resultList = []
 ipv4IdentString = "\"ip_prefix\": \""
 ipv6IdentString = "\"ipv6_prefix\": \""
 ipAddressTailString = "\","
-httpString = "http://"
-S3BucketString = ".s3.amazonaws.com"
+TARGET_URL_TEMPLATE = "http://{domain}.s3.amazonaws.com"
 keyLineStartString = "<Key>"
 keyLineEndString = "</Key>"
 
 
 def main(test_domain):
     """Run the bucket investigation tool."""
-    doAmazonTest = "junkdata"
 
+    # This would be better as an argument, e.g. --update-ranges
+    doAmazonTest = "junkdata"
     while doAmazonTest not in ('y', 'Y', 'n', 'N'):
         doAmazonTest = input("Update Amazon IP ranges? Y/N ")
         if doAmazonTest == 'y' or 'Y':
@@ -49,17 +49,20 @@ def main(test_domain):
             resultList.append("Domain: \"" + test_domain + "\" is hosted in Amazon S3 at: " + current_ip_address + "\n")
     sourceIPs.close()
 
-    # print out the domains which successfully resolved and check if the root is accessible.
     for item in resultList:
-        print (item)
-        s3Root = checkS3Root(test_domain)
-        httpCode = s3Root.status_code
-        if httpCode == 200:
-            print("HTTP response for " + httpString + test_domain + S3BucketString + " is: " + str(httpCode))
+        print("Successfully resolved {}".format(item))
+        target_url = TARGET_URL_TEMPLATE.format(domain=test_domain)
+
+        response = requests.get(target_url)
+
+        print('Response for {target} is: {status}'.format(
+            target=target_url,
+            status=response.status_code,
+        ))
+
+        if response.status_code == 200:
             print("S3 root directory is publicly listable. Enumerating files.")
-            harvestRoot(s3Root.content, test_domain)
-        else:
-            print("HTTP response for " + httpString + test_domain + S3BucketString + " is: " + str(httpCode))
+            harvestRoot(target_url, response.content)
     sys.exit(0)
 
 
@@ -121,21 +124,11 @@ def parseAmazonIPs():
     sourceIPs.close()
 
 
-def checkS3Root(domain):
-    """Check the permissions of the root s3 bucket of a domain.
-    :param domain: The domain to check.
-    :return: The status code when trying to access the bucket.
-    """
-    testString = httpString + domain + S3BucketString
-    return requests.get(testString).status_code
-
-
 # function to read and parse the XML file returned when and
 # list and enumerate all files within it
 # parameters passed are:
 #    s3BucketIn        - the response contents of the S3 root request.
-#    domainIn        - the domain to be used when constructing the URLs for further requests.
-def harvestRoot(s3BucketIn, domainIn):
+def harvestRoot(target_url, s3BucketIn):
     """Enumerate all files found in the bucket for the domain.
     :param bucket: Bucket ID to check.
     :param domain: Domain under which the bucket resides.
@@ -149,12 +142,12 @@ def harvestRoot(s3BucketIn, domainIn):
     for keys in file_list:
         file_name = keys.find("Key").text
         print("Attempting to download " + file_name)
-        file_string = httpString + domainIn + S3BucketString + "/" + file_name
+        file_string = target_url + "/" + file_name
         file_contents = requests.get(file_string)
         if file_contents.status_code == 200:
             print(file_name + " opened successfully writing to ./files/" + file_name)
-            file_harvester = open("%" % file_name, "wb").write(file_contents.content)
-            file_harvester.close()
+            with open(file_name, 'wb') as file_harvester:
+                file_harvester.write(file_contents.content)
         elif file_contents.status_code == 403:
             print(file_name + "status code 403: permission denied.")
         elif file_contents.status_code == 404:
