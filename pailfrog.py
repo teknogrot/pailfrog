@@ -106,33 +106,30 @@ def update_amazon_ips():
 
 
 def parse_amazon_ips():
-    """Parse the updated amazon IPs into CSV (why?)"""
+    """Parse the updated amazon IPs into CSV (why? why not use json?)"""
     # TODO: Note that this should be CIDR notation IPv4/6 ranges
-    # TODO: De-duplicate entries
     # TODO: Only use s3 ranges
-    # open both IPv4 and IPv6 files in replacement mode#
-    # TODO: No, don't, use a context manager around just the code writing them
-    ipv4_file = open("./config/sourceIPv4ranges.csv", "w")
-    ipv6_file = open("./config/sourceIPv6ranges.csv", "w")
-    # open the source_ips.json file in read-only mode#
     source_ips = open("./config/sourceIPs.json", "r")
 
-    for line in source_ips:
-        if IPV4_IDENT_STRING in line:
-            temp_line = line.replace(IPV4_IDENT_STRING, "")
-            final_string = temp_line.replace(IP_TAIL_STRING, ",")
-            ipv4_file.write(final_string.strip() + "\n")
-        elif IPV6_IDENT_STRING in line:
-            temp_line = line.replace(IPV6_IDENT_STRING, "")
-            final_string = temp_line.replace(IP_TAIL_STRING, ",")
-            ipv6_file.write(final_string.strip() + "\n")
+    ipv4_lines = set()
+    ipv6_lines = set()
 
-    # TODO: If doing this without a context manager, it's best to open in a
-    # try block and close with a finally
-    # (but really, just use the context manager)
-    ipv4_file.close()
-    ipv6_file.close()
-    source_ips.close()
+    for line in source_ips:
+        line = line.replace(IP_TAIL_STRING, ",").strip()
+        if IPV4_IDENT_STRING in line:
+            ipv4_lines.add(line.replace(IPV4_IDENT_STRING, ""))
+        elif IPV6_IDENT_STRING in line:
+            ipv6_lines.add(line.replace(IPV6_IDENT_STRING, ""))
+
+    if ipv4_lines:
+        with open("./config/sourceIPv4ranges.csv", "w") as ipv4_handle:
+            for line in ipv4_lines:
+                ipv4_handle.write('\n'.join(ipv4_lines))
+
+    if ipv6_lines:
+        with open("./config/sourceIPv6ranges.csv", "w") as ipv6_handle:
+            for line in ipv6_lines:
+                ipv6_handle.write('\n'.join(ipv4_lines))
 
 
 # function to read and parse the XML file returned when and
