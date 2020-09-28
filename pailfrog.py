@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
-# pailfrog.py - Amazon S3 bucket investigation tool, written in Python3 #
+"""Pailfrog - Amazon S3 bucket investigation tool."""
+import socket
+import sys
+import xml.etree.ElementTree as ET
 
-# imports block begins #
-import os										# operating system functionality.
-import sys, getopt, requests					# system, parameters and requests functionality.
-import socket									# socket connection required to get IP address of domain.
-import csv										# csv read/write functionality required for reading Amazon IP addresses.
-import json										# json handling for the Amazon data.
-import xml.etree.ElementTree as ET				# xml handling for the S3 directory listing.
-import ipaddress								# IP address and address range functionality.
-import time									 	# time functionality.
-# imports block ends #
+import ipaddress
+import requests
 
-# global variable definition block begins #
+
 s3List = []		# an empty list to contain all the S3 IPV4 ranges.
 resultList = []	# an empty list to contain all the IP addresses which are in the S3 IPV4 range.
 fileList = []	# an empty list to contain all files identified in the root of an S3 bucket.
