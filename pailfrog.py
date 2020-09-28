@@ -13,46 +13,51 @@ import requests
 # an empty list to contain all the S3 IPV4 ranges.
 s3List = []
 # an empty list to contain all the IP addresses which are in the S3 IPV4 range.
-resultList = []
+result_list = []
 
-ipv4IdentString = "\"ip_prefix\": \""
-ipv6IdentString = "\"ipv6_prefix\": \""
-ipAddressTailString = "\","
+IPV4_IDENT_STRING = "\"ip_prefix\": \""
+IPV6_IDENT_STRING = "\"ipv6_prefix\": \""
+IP_TAIL_STRING = "\","
 TARGET_URL_TEMPLATE = "http://{domain}.s3.amazonaws.com"
-keyLineStartString = "<Key>"
-keyLineEndString = "</Key>"
 
 
 def main(test_domain):
     """Run the bucket investigation tool."""
 
     # This would be better as an argument, e.g. --update-ranges
-    doAmazonTest = "junkdata"
-    while doAmazonTest not in ('y', 'Y', 'n', 'N'):
-        doAmazonTest = input("Update Amazon IP ranges? Y/N ")
-        if doAmazonTest == 'y' or 'Y':
+    do_amazon_test = "junkdata"
+    while do_amazon_test not in ('y', 'Y', 'n', 'N'):
+        do_amazon_test = input("Update Amazon IP ranges? Y/N ")
+        if do_amazon_test == 'y' or 'Y':
             print("Retrieving updated Amazon IP ranges...")
-            updateAmazonIPs()
+            update_amazon_ips()
             print("Ranges updated successfully.")
-        elif doAmazonTest == 'n' or 'N':
+        elif do_amazon_test == 'n' or 'N':
             print("Skipping Amazon range update")
 
     print("Testing hostname: '" + test_domain + "'.")
-    current_ip_address = socket.gethostbyname(test_domain)
+    target_url = TARGET_URL_TEMPLATE.format(domain=test_domain)
+    print('S3 bucket for {domain} is at {target}'.format(
+        domain=test_domain,
+        target=target_url,
+    ))
+    current_ip_address = socket.gethostbyname(target_url)
     print("IP address of host is: " + current_ip_address)
 
-    # open sourceIPv4ranges.csv in read-only mode.
-    sourceIPs = open("./config/sourceIPv4ranges.csv", "r")
-    for line in sourceIPs:
+    with open("./config/sourceIPv4ranges.csv", "r") as source_ips_handle:
+        source_ips = source_ips_handle.readlines()
+
+    bucket_in_valid_s3_range = False
+    for line in source_ips:
         current_range = ip_network(line.strip())
         if ip_address(current_ip_address) in current_range:
-            resultList.append("Domain: \"" + test_domain + "\" is hosted in Amazon S3 at: " + current_ip_address + "\n")
-    sourceIPs.close()
+            print('Bucket found in s3 range {s3_range}'.format(
+                s3_range=str(current_range),
+            ))
+            bucket_in_valid_s3_range = True
+            break
 
-    for item in resultList:
-        print("Successfully resolved {}".format(item))
-        target_url = TARGET_URL_TEMPLATE.format(domain=test_domain)
-
+    if bucket_in_valid_s3_range:
         response = requests.get(target_url)
 
         print('Response for {target} is: {status}'.format(
@@ -62,81 +67,87 @@ def main(test_domain):
 
         if response.status_code == 200:
             print("S3 root directory is publicly listable. Enumerating files.")
-            harvestRoot(target_url, response.content)
-    sys.exit(0)
+            harvest_root(target_url, response.content)
+    else:
+        sys.stderr.write(
+            'Bucket IP {ip} was not found in any known s3 ranges.\n'.format(
+                ip=str(current_ip_address),
+            )
+        )
+        sys.exit(1)
 
 
-def rangeDateCheck():
+def range_date_check():
     """Check how long since the amazon IP ranges were last updated."""
-    if os.path.isfile("./config/sourceIPs.json"):
-        fileModifiedOn = os.path.getmtime("./config/sourceIPs.json")
-        print("File updated on: " + str(fileModifiedOn))
-        currentTime = datetime.now()
-        print("Current time: " + str(currentTime))
-        tempTime = currentTime - fileModifiedOn
-        print("Diff is: " + str(tempTime))
-        if (currentTime - fileModifiedOn) > 86400:
-            updateAmazonIPs()
+    if os.path.isfile("./config/source_ips.json"):
+        file_modified_on = os.path.getmtime("./config/source_ips.json")
+        print("File updated on: " + str(file_modified_on))
+        current_time = datetime.now()
+        print("Current time: " + str(current_time))
+        temp_time = current_time - file_modified_on
+        print("Diff is: " + str(temp_time))
+        if (current_time - file_modified_on) > 86400:
+            update_amazon_ips()
         else:
             print("Amazon IP addresses up to date. Skipping update.")
 
 
-def updateAmazonIPs():
+def update_amazon_ips():
     """Check the current S3 IP addresses are known."""
     response = requests.get("https://ip-ranges.amazonaws.com/ip-ranges.json")
-    with open("./config/sourceIPs.json", "wb") as output_handle:
+    with open("./config/source_ips.json", "wb") as output_handle:
         output_handle.write(response.json())
     # TODO: If we really want to be dealing with CSV we should just pass it
     # on from here and then return the parsed data, to be written by whatever
     # called it. Avoiding mixing I/O into random functions that aren't named
     # in an obvious way to indicate they will write it will make this harder
     # to maintain later
-    parseAmazonIPs()
+    parse_amazon_ips()
 
 
-def parseAmazonIPs():
+def parse_amazon_ips():
     """Parse the updated amazon IPs into CSV (why?)"""
     # TODO: Note that this should be CIDR notation IPv4/6 ranges
     # TODO: De-duplicate entries
     # TODO: Only use s3 ranges
     # open both IPv4 and IPv6 files in replacement mode#
     # TODO: No, don't, use a context manager around just the code writing them
-    ipv4File = open("./config/sourceIPv4ranges.csv", "w")
-    ipv6File = open("./config/sourceIPv6ranges.csv", "w")
-    # open the sourceIPs.json file in read-only mode#
-    sourceIPs = open("./config/sourceIPs.json", "r")
+    ipv4_file = open("./config/sourceIPv4ranges.csv", "w")
+    ipv6_file = open("./config/sourceIPv6ranges.csv", "w")
+    # open the source_ips.json file in read-only mode#
+    source_ips = open("./config/sourceIPs.json", "r")
 
-    for line in sourceIPs:
-        if ipv4IdentString in line:
-            tempLine = line.replace(ipv4IdentString, "")
-            finalString = tempLine.replace(ipAddressTailString, ",")
-            ipv4File.write(finalString.strip() + "\n")
-        elif ipv6IdentString in line:
-            tempLine = line.replace(ipv6IdentString, "")
-            finalString = tempLine.replace(ipAddressTailString, ",")
-            ipv6File.write(finalString.strip() + "\n")
+    for line in source_ips:
+        if IPV4_IDENT_STRING in line:
+            temp_line = line.replace(IPV4_IDENT_STRING, "")
+            final_string = temp_line.replace(IP_TAIL_STRING, ",")
+            ipv4_file.write(final_string.strip() + "\n")
+        elif IPV6_IDENT_STRING in line:
+            temp_line = line.replace(IPV6_IDENT_STRING, "")
+            final_string = temp_line.replace(IP_TAIL_STRING, ",")
+            ipv6_file.write(final_string.strip() + "\n")
 
     # TODO: If doing this without a context manager, it's best to open in a
     # try block and close with a finally
     # (but really, just use the context manager)
-    ipv4File.close()
-    ipv6File.close()
-    sourceIPs.close()
+    ipv4_file.close()
+    ipv6_file.close()
+    source_ips.close()
 
 
 # function to read and parse the XML file returned when and
 # list and enumerate all files within it
 # parameters passed are:
-#    s3BucketIn        - the response contents of the S3 root request.
-def harvestRoot(target_url, s3BucketIn):
+#    s3_bucket_in        - the response contents of the S3 root request.
+def harvest_root(target_url, s3_bucket_in):
     """Enumerate all files found in the bucket for the domain.
     :param bucket: Bucket ID to check.
     :param domain: Domain under which the bucket resides.
     """
     # TODO: FIX PARSING ERROR HERE #
-    s3Tree = ET.fromstring(s3BucketIn)
-    print(str(s3Tree))
-    file_list = s3Tree.findall("Contents")
+    s3_tree = ET.fromstring(s3_bucket_in)
+    print(str(s3_tree))
+    file_list = s3_tree.findall("Contents")
     print(str(file_list))
     print(str(len(file_list)) + " files found")
     for keys in file_list:
@@ -145,7 +156,7 @@ def harvestRoot(target_url, s3BucketIn):
         file_string = target_url + "/" + file_name
         file_contents = requests.get(file_string)
         if file_contents.status_code == 200:
-            print(file_name + " opened successfully writing to ./files/" + file_name)
+            print('Writing to ./files/' + file_name)
             with open(file_name, 'wb') as file_harvester:
                 file_harvester.write(file_contents.content)
         elif file_contents.status_code == 403:
