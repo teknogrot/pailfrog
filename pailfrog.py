@@ -67,7 +67,23 @@ def main(test_domain):
 
         if response.status_code == 200:
             print("S3 root directory is publicly listable. Enumerating files.")
-            harvest_root(target_url, response.content)
+            results = harvest_root(target_url, response.content)
+            allowed = results.get(200)
+            if allowed:
+                print('Allowed:')
+                for item in results.get(200):
+                    print('  {}'.format(item))
+            denied = results.get(403)
+            if denied:
+                print('Denied:')
+                for item in results.get(200):
+                    print('  {}'.format(item))
+            missing = results.get(404)
+            if missing:
+                print('Missing:')
+                for item in results.get(404):
+                    print('  {}'.format(item))
+            # TODO: Add json output flag
     else:
         sys.stderr.write(
             'Bucket IP {ip} was not found in any known s3 ranges.\n'.format(
@@ -141,25 +157,28 @@ def harvest_root(target_url, s3_bucket_in):
     :param bucket: Bucket ID to check.
     :param domain: Domain under which the bucket resides.
     """
-    # TODO: FIX PARSING ERROR HERE #
     s3_tree = ET.fromstring(s3_bucket_in)
-    print(str(s3_tree))
     file_list = s3_tree.findall("Contents")
-    print(str(file_list))
+    results = {}
     print(str(len(file_list)) + " files found")
     for keys in file_list:
         file_name = keys.find("Key").text
         print("Attempting to download " + file_name)
         file_string = target_url + "/" + file_name
-        file_contents = requests.get(file_string)
-        if file_contents.status_code == 200:
-            print('Writing to ./files/' + file_name)
-            with open(file_name, 'wb') as file_harvester:
-                file_harvester.write(file_contents.content)
-        elif file_contents.status_code == 403:
-            print(file_name + "status code 403: permission denied.")
-        elif file_contents.status_code == 404:
-            print(file_name + "status code 404: file not found.")
+        response = requests.get(file_string)
+        if response.status_code not in results:
+            results[response.status_code] = []
+        results[response.status_code].append(file_string)
+
+        if response.status_code == 200:
+            dump_accessible_file(response.content, file_name)
+    return results
+
+
+def dump_accessible_file(file_contents, destination):
+    print('Writing to {}'.format(destination))
+    with open(destination, 'wb') as dump_handle:
+        dump_handle.write(file_contents)
 
 
 if __name__ == "__main__":

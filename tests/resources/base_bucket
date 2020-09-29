@@ -19,7 +19,6 @@
     <StorageClass>STANDARD</StorageClass>
   </Contents>
   <Contents>
-  <Contents>
     <Key>index.html</Key>
     <LastModified>2020-01-01T19:18:17.000Z</LastModified>
     <ETag>"169534dcdb3e5cb6196230e0bacc406d"</ETag>
