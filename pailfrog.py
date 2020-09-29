@@ -18,7 +18,7 @@ result_list = []
 IPV4_IDENT_STRING = "\"ip_prefix\": \""
 IPV6_IDENT_STRING = "\"ipv6_prefix\": \""
 IP_TAIL_STRING = "\","
-TARGET_URL_TEMPLATE = "http://{domain}.s3.amazonaws.com"
+DOMAIN_TEMPLATE = "{domain}.s3.amazonaws.com"
 
 
 def main(test_domain):
@@ -28,20 +28,21 @@ def main(test_domain):
     do_amazon_test = "junkdata"
     while do_amazon_test not in ('y', 'Y', 'n', 'N'):
         do_amazon_test = input("Update Amazon IP ranges? Y/N ")
-        if do_amazon_test == 'y' or 'Y':
+        if do_amazon_test in ('y', 'Y'):
             print("Retrieving updated Amazon IP ranges...")
             update_amazon_ips()
             print("Ranges updated successfully.")
-        elif do_amazon_test == 'n' or 'N':
+        elif do_amazon_test in ('n', 'N'):
             print("Skipping Amazon range update")
 
     print("Testing hostname: '" + test_domain + "'.")
-    target_url = TARGET_URL_TEMPLATE.format(domain=test_domain)
+    target_domain = DOMAIN_TEMPLATE.format(domain=test_domain)
+    target_url = 'http://{}'.format(target_domain)
     print('S3 bucket for {domain} is at {target}'.format(
         domain=test_domain,
         target=target_url,
     ))
-    current_ip_address = socket.gethostbyname(target_url)
+    current_ip_address = socket.gethostbyname(target_domain)
     print("IP address of host is: " + current_ip_address)
 
     with open("./config/sourceIPv4ranges.csv", "r") as source_ips_handle:
@@ -49,7 +50,7 @@ def main(test_domain):
 
     bucket_in_valid_s3_range = False
     for line in source_ips:
-        current_range = ip_network(line.strip())
+        current_range = ip_network(line.strip().replace(',', ''))
         if ip_address(current_ip_address) in current_range:
             print('Bucket found in s3 range {s3_range}'.format(
                 s3_range=str(current_range),
@@ -112,7 +113,7 @@ def update_amazon_ips():
     """Check the current S3 IP addresses are known."""
     response = requests.get("https://ip-ranges.amazonaws.com/ip-ranges.json")
     with open("./config/source_ips.json", "wb") as output_handle:
-        output_handle.write(response.json())
+        output_handle.write(response.content)
     # TODO: If we really want to be dealing with CSV we should just pass it
     # on from here and then return the parsed data, to be written by whatever
     # called it. Avoiding mixing I/O into random functions that aren't named
