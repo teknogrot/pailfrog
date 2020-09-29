@@ -149,21 +149,26 @@ def parse_amazon_ips():
                 ipv6_handle.write('\n'.join(ipv4_lines))
 
 
-# function to read and parse the XML file returned when and
-# list and enumerate all files within it
-# parameters passed are:
-#    s3_bucket_in        - the response contents of the S3 root request.
+def find_xml_tags(tree, tag):
+    results = []
+    for node in tree:
+        if node.tag.split('}')[-1] == tag:
+            results.append(node)
+    return results
+
+
 def harvest_root(target_url, s3_bucket_in):
     """Enumerate all files found in the bucket for the domain.
     :param bucket: Bucket ID to check.
     :param domain: Domain under which the bucket resides.
     """
     s3_tree = ET.fromstring(s3_bucket_in)
-    file_list = s3_tree.findall("Contents")
+    # ET's handling of namespaces prior to py3.8 is unhelpful
+    file_list = find_xml_tags(s3_tree, 'Contents')
     results = {}
     print(str(len(file_list)) + " files found")
     for keys in file_list:
-        file_name = keys.find("Key").text
+        file_name = find_xml_tags(keys, 'Key')[0].text
         print("Attempting to download " + file_name)
         file_string = target_url + "/" + file_name
         response = requests.get(file_string)
