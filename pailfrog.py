@@ -2,14 +2,14 @@
 # pailfrog.py - Amazon S3 bucket investigation tool, written in Python3 #
 
 # imports block begins #
-import os										# operating system functionality.
+import os							# operating system functionality.
 import sys, getopt, requests					# system, parameters and requests functionality.
-import socket									# socket connection required to get IP address of domain.
-import csv										# csv read/write functionality required for reading Amazon IP addresses.
-import json										# json handling for the Amazon data.
+import socket							# socket connection required to get IP address of domain.
+import csv							# csv read/write functionality required for reading Amazon IP addresses.
+import json							# json handling for the Amazon data.
 import xml.etree.ElementTree as ET				# xml handling for the S3 directory listing.
-import ipaddress								# IP address and address range functionality.
-import time									 	# time functionality.
+import ipaddress						# IP address and address range functionality.
+import time						 	# time functionality.
 # imports block ends #
 
 # global variable definition block begins #
@@ -25,6 +25,7 @@ S3BucketString = ".s3.amazonaws.com"
 keyLineStartString = "<Key>"
 keyLineEndString = "</Key>"
 # global variable definition block begins #
+# global variable definition block ends #
 
 # main function begins #
 def main(argv):
@@ -35,11 +36,11 @@ def main(argv):
 	# print("Amazon IP ranges last updated " + numberOfDays + " ago.")
 	while doAmazonTest not in ('y', 'Y', 'n', 'N'):
 		doAmazonTest = input("Update Amazon IP ranges? Y/N ")
-		if doAmazonTest == 'y' or 'Y':
+		if doAmazonTest == 'y' or doAmazonTest == 'Y':
 			print("Retrieving updated Amazon IP ranges...")
 			updateAmazonIPs()							# start by updating Amazon IP addresses.
 			print("Ranges updated successfully.")
-		elif doAmazonTest == 'n' or 'N':
+		elif doAmazonTest == 'n' or doAmazonTest == 'N':
 			print("Skipping Amazon range update")
 	
 	print("Testing hostname: '" + testDomain + "'.")
@@ -81,8 +82,7 @@ def main(argv):
 #		if (currentTime - fileModifiedOn) > 86400:
 #			updateAmazonIPs()
 #		else:
-#			print("Amazon IP addresses up to date. Skipping update.")	
-		
+#			print("Amazon IP addresses up to date. Skipping update.")
 # end rangeDateCheck #
 
 # short function to ensure that the current S3 IP addresses are known to the program #
@@ -156,32 +156,42 @@ def checkS3Root(domainIn):
 	return rootResponse
 # end checkS3Root #
 
+# short function to find XML tags from S3 bucket root XML file#
+def findXMLTags(tree, tag):
+    results = []
+    for node in tree:
+        if node.tag.split('}')[-1] == tag:
+            results.append(node)
+    return results
+# end findXMLTags
+
 # function to read and parse the XML file returned when and
 # list and enumerate all files within it
 # parameters passed are:
-#	s3BucketIn		- the response contents of the S3 root request.
-#	domainIn		- the domain to be used when constructing the URLs for further requests.
+#       s3BucketIn              - the response contents of the S3 root request.
+#       domainIn                - the domain to be used when constructing the URLs for further requests.
 def harvestRoot(s3BucketIn, domainIn):
-	# TODO: FIX PARSING ERROR HERE #
 	s3Tree = ET.fromstring(s3BucketIn)
-	print(str(s3Tree))
-	fileList = s3Tree.findall("Contents")
-	print(str(fileList))
-	print(str(keys))
-	print(str(len(keys)) + " files found")
-	for file in FileList:
-		fileName = keys.find("Key").text
+	fileList = findXMLTags(s3Tree, "Contents")
+	results = {}
+	print(str(len(fileList)) + " files found. Attempting download")
+	# for every file found, try open that file and download it if successful #
+	for keys in fileList:
+		fileName = findXMLTags(keys, "Key")[0].text
 		print("Attempting to download " + fileName)
 		fileString = httpString + domainIn + S3BucketString + "/" + fileName
-		fileContents = request.get(fileString)
+		fileContents = requests.get(fileString)
 		if fileContents.status_code == 200:
 			print(fileName + " opened successfully writing to ./files/" + fileName)
-			fileHarvester = open("%" % fileName, "wb").write(fileContents.content)
+			with open("./files/%s" % fileName, "wb") as fileHarvester:
+				fileHarvester.write(fileContents.content)
 			fileHarvester.close()
 		elif fileContents.status_code == 403:
 			print(fileName + "status code 403: permission denied.")
 		elif fileContents.status_code == 404:
 			print(fileName + "status code 404: file not found.")
+		else:
+			print(fileName + "file download failed with status code: " + str(fileContents.status_code))
 # end harvestRoot() #
 
 # run main #
