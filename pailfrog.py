@@ -10,6 +10,7 @@ import json							# json handling for the Amazon data.
 import xml.etree.ElementTree as ET				# xml handling for the S3 directory listing.
 import ipaddress						# IP address and address range functionality.
 import time						 	# time functionality.
+import datetime							# date functioanlity.
 # imports block ends #
 
 # global variable definition block begins #
@@ -33,6 +34,11 @@ keyLineEndString = "</Key>"
 def main(argv):
 	testDomain = str(sys.argv[1])
 	doAmazonTest = "junkdata"
+	startTime = datetime.datetime.now()
+	runTimeString = startTime.strftime("%Y%m%d%H%M%S")
+	print("Task started at: " + startTime.strftime("%H:%M:%S, %d/%m/%Y"))
+	projectFolder = createFolder(testDomain, runTimeString)
+	print("Creating folder: " + projectFolder)
 
 	## numberOfDays = rangeDateCheck()
 	# print("Amazon IP ranges last updated " + numberOfDays + " ago.")
@@ -65,7 +71,7 @@ def main(argv):
 		if httpCode == 200:
 			print("HTTP response for " + httpString + testDomain + S3BucketString + " is: " + str(httpCode))
 			print("S3 root directory is publicly listable. Enumerating files.")
-			harvestRoot(s3Root.content, testDomain)
+			harvestRoot(s3Root.content, testDomain, projectFolder)
 		else:
 			print("HTTP response for " + httpString + testDomain + S3BucketString + " is: " + str(httpCode))
 	sys.exit(0)
@@ -85,6 +91,21 @@ def main(argv):
 #		else:
 #			print("Amazon IP addresses up to date. Skipping update.")
 # end rangeDateCheck #
+
+# a short function to create a new folder for the input domain #
+def createFolder(folderNameIn, timeStringIn):
+	directoryPath = "./output/" + folderNameIn + "_" + timeStringIn
+	permissions = 0o744
+	try:
+		os.makedirs(directoryPath, permissions)
+	except OSError:
+		print ("Directory creation for %s failed" % directoryPath)
+		return directoryPath
+	else:
+		print ("Directory creation for %s succeeded" % directoryPath)
+		return directoryPath
+# createFolder ends #
+
 
 # short function to ensure that the current S3 IP addresses are known to the program #
 def updateAmazonIPs():
@@ -169,7 +190,7 @@ def findXMLTags(tree, tag):
 # parameters passed are:
 #       s3BucketIn              - the response contents of the S3 root request.
 #       domainIn                - the domain to be used when constructing the URLs for further requests.
-def harvestRoot(s3BucketIn, domainIn):
+def harvestRoot(s3BucketIn, domainIn, directoryPathIn):
 	s3Tree = ET.fromstring(s3BucketIn)
 	fileList = findXMLTags(s3Tree, "Contents")
 	results = {}
@@ -181,8 +202,9 @@ def harvestRoot(s3BucketIn, domainIn):
 		fileString = httpString + domainIn + S3BucketString + "/" + fileName
 		fileContents = requests.get(fileString)
 		if fileContents.status_code == 200:
-			print(fileName + " opened successfully writing to ./files/" + fileName)
-			with open("./files/%s" % fileName, "wb") as fileHarvester:
+			filePath = directoryPathIn + "/" + fileName
+			print("File " + fileName + " opened successfully (status code 200). Writing to: " + filePath)
+			with open("./%s" %filePath, "wb") as fileHarvester:
 				fileHarvester.write(fileContents.content)
 			fileHarvester.close()
 		elif fileContents.status_code == 403:
