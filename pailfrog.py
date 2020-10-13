@@ -13,10 +13,13 @@ import time						 	# time functionality.
 # imports block ends #
 
 # global variable definition block begins #
-s3List = []		# an empty list to contain all the S3 IPV4 ranges.
-resultList = []	# an empty list to contain all the IP addresses which are in the S3 IPV4 range.
-fileList = []	# an empty list to contain all files identified in the root of an S3 bucket.
+s3List = []							# an empty list to contain all the S3 IPV4 ranges.
+resultList = []							# an empty list to contain all the IP addresses which are in the S3 IPV4 range.
+fileList = []							# an empty list to contain all files identified in the root of an S3 bucket.
+# global variable definition block ends #
 
+
+# string variable definition block ends #
 ipv4IdentString = "\"ip_prefix\": \""
 ipv6IdentString = "\"ipv6_prefix\": \""
 ipAddressTailString = "\","
@@ -24,38 +27,36 @@ httpString = "http://"
 S3BucketString = ".s3.amazonaws.com"
 keyLineStartString = "<Key>"
 keyLineEndString = "</Key>"
-# global variable definition block begins #
-# global variable definition block ends #
+# string variable definition block ends #
 
 # main function begins #
 def main(argv):
 	testDomain = str(sys.argv[1])
 	doAmazonTest = "junkdata"
-	
+
 	## numberOfDays = rangeDateCheck()
 	# print("Amazon IP ranges last updated " + numberOfDays + " ago.")
 	while doAmazonTest not in ('y', 'Y', 'n', 'N'):
 		doAmazonTest = input("Update Amazon IP ranges? Y/N ")
 		if doAmazonTest == 'y' or doAmazonTest == 'Y':
 			print("Retrieving updated Amazon IP ranges...")
-			updateAmazonIPs()							# start by updating Amazon IP addresses.
+			updateAmazonIPs()						# start by updating Amazon IP addresses.
 			print("Ranges updated successfully.")
 		elif doAmazonTest == 'n' or doAmazonTest == 'N':
 			print("Skipping Amazon range update")
-	
+
 	print("Testing hostname: '" + testDomain + "'.")
 	currentIPAddress = socket.gethostbyname(testDomain)
 	print("IP address of host is: " + currentIPAddress)
 
 	# open sourceIPv4ranges.csv in read-only mode.
-	sourceIPs = open("./config/sourceIPv4ranges.csv", "r")
-	for line in sourceIPs:
-		tempLine = line.replace(",\n", "")														# prune out the comma and newline from the line of the .csv,
-		currentRange = ipaddress.ip_network(tempLine)											# convert to IP address
-		if checkInRange(currentIPAddress, currentRange):
-			resultList.append("Domain: \"" + testDomain + "\" is hosted in Amazon S3 at: " + currentIPAddress + "\n")
-	sourceIPs.close()
-	
+	with open("./config/sourceIPv4ranges.csv", "r") as sourceIPs:
+		for line in sourceIPs:
+			tempLine = line.replace(",\n", "")					# prune out the comma and newline from the line of the .csv,
+			currentRange = ipaddress.ip_network(tempLine)				# convert to IP address
+			if checkInRange(currentIPAddress, currentRange):
+				resultList.append("Domain: \"" + testDomain + "\" is hosted in Amazon S3 at: " + currentIPAddress + "\n")
+
 	# print out the domains which successfully resolved and check if the root is accessible.
 	for item in resultList:
 		print (item)
@@ -90,8 +91,8 @@ def updateAmazonIPs():
 	response = requests.get("https://ip-ranges.amazonaws.com/ip-ranges.json")
 	#responseJsonified = response.json()
 	#sourceIPs.write(responseJsonified)
-	sourceIPs = open("./config/sourceIPs.json", "wb").write(response.content)
-	#sourceIPs.close()
+	with open("./config/sourceIPs.json", "wb") as sourceIPs:
+		sourceIPs.write(response.content)
 	parseAmazonIPs()
 # end updateAmazonIPs #
 
@@ -104,21 +105,21 @@ def parseAmazonIPs():
 	ipv4File = open("./config/sourceIPv4ranges.csv", "w")
 	ipv6File = open("./config/sourceIPv6ranges.csv", "w")
 	# open the sourceIPs.json file in read-only mode#
-	sourceIPs = open("./config/sourceIPs.json", "r")
-	
-	#with open("./config/sourceIPs.json", "r") as sourceIPs:
-	#	sourceIPsDictionary = json.load(sourceIPs)
-	
-	#for prefixes in sourceIPsDictionary:
-	#	if prefixes['service'] == 'S3':
-	#		ipv4File.write(prefix['ip_prefix'] + ",\n")
-	
-	#for ipv6_prefixes in sourceIPsDictionary:
-	#	if ipv6_prefixes['service'] == "S3":
-	#		ipv6File.write(prefix['ipv6_prefix'] + ",\n")
-	
-	# iterate through file, parse out IP addresses to files #
-	for line in sourceIPs:
+	#sourceIPs = open("./config/sourceIPs.json", "r")
+	with open("./config/sourceIPs.json", "r") as sourceIPs:
+		#sourceIPsDictionary = json.load(sourceIPs)
+		# handle IPv4
+		#for prefixes in sourceIPsDictionary:
+		#	print(sourceIPsDictionary[prefixes])
+		#	if prefixes['service'] == 'S3':
+		#		ipv4File.write(prefix['ip_prefix'] + ",\n")
+		# handle PIv6
+		#for ipv6_prefixes in sourceIPsDictionary:
+		#	if ipv6_prefixes['service'] == "S3":
+		#		ipv6File.write(prefix['ipv6_prefix'] + ",\n")
+
+		# iterate through file, parse out IP addresses to files #
+		for line in sourceIPs:
 			if ipv4IdentString in line:
 				tempLine = line.replace(ipv4IdentString, "")
 				finalString = tempLine.replace(ipAddressTailString, ",")
@@ -130,8 +131,6 @@ def parseAmazonIPs():
 	# close up all the files #
 	ipv4File.close()
 	ipv6File.close()
-	sourceIPs.close()
-	
 # end parseAmazonIPs #
 
 # short function that checks if an IP address is in a CIDR range.
