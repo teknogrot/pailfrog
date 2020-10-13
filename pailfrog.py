@@ -37,8 +37,6 @@ def main(argv):
 	startTime = datetime.datetime.now()
 	runTimeString = startTime.strftime("%Y%m%d%H%M%S")
 	print("Task started at: " + startTime.strftime("%H:%M:%S, %d/%m/%Y"))
-	projectFolder = createFolder(testDomain, runTimeString)
-	print("Creating folder: " + projectFolder)
 
 	## numberOfDays = rangeDateCheck()
 	# print("Amazon IP ranges last updated " + numberOfDays + " ago.")
@@ -62,7 +60,10 @@ def main(argv):
 			currentRange = ipaddress.ip_network(tempLine)				# convert to IP address
 			if checkInRange(currentIPAddress, currentRange):
 				resultList.append("Domain: \"" + testDomain + "\" is hosted in Amazon S3 at: " + currentIPAddress + "\n")
-
+				projectFolder = createFolder(testDomain, runTimeString)
+				print("Creating folder: " + projectFolder)
+			else:
+				print("Domain " + testDomain + " is not hosted in Amazon S3. Skipping folder creation")
 	# print out the domains which successfully resolved and check if the root is accessible.
 	for item in resultList:
 		print (item)
@@ -206,7 +207,6 @@ def harvestRoot(s3BucketIn, domainIn, directoryPathIn):
 			print("File " + fileName + " opened successfully (status code 200). Writing to: " + filePath)
 			with open("./%s" %filePath, "wb") as fileHarvester:
 				fileHarvester.write(fileContents.content)
-			fileHarvester.close()
 		elif fileContents.status_code == 403:
 			print(fileName + "status code 403: permission denied.")
 		elif fileContents.status_code == 404:
