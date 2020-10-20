@@ -62,8 +62,8 @@ def main(argv):
 				resultList.append("Domain: \"" + testDomain + "\" is hosted in Amazon S3 at: " + currentIPAddress + "\n")
 				projectFolder = createFolder(testDomain, runTimeString)
 				print("Creating folder: " + projectFolder)
-			else:
-				print("Domain " + testDomain + " is not hosted in Amazon S3. Skipping folder creation")
+				break
+		print("Domain " + testDomain + " is not hosted in Amazon S3. Skipping folder creation")
 	# print out the domains which successfully resolved and check if the root is accessible.
 	for item in resultList:
 		print (item)
@@ -123,36 +123,32 @@ def updateAmazonIPs():
 # needs logic to de-duplicate entries and properly process .json elements	#
 # to only use S3 ranges														#
 def parseAmazonIPs():
-	# open both IPv4 and IPv6 files in replacement mode#
-	ipv4File = open("./config/sourceIPv4ranges.csv", "w")
-	ipv6File = open("./config/sourceIPv6ranges.csv", "w")
-	# open the sourceIPs.json file in read-only mode#
 	#sourceIPs = open("./config/sourceIPs.json", "r")
 	with open("./config/sourceIPs.json", "r") as sourceIPs:
-		#sourceIPsDictionary = json.load(sourceIPs)
+		sourceIPsDictionary = json.load(sourceIPs)
 		# handle IPv4
-		#for prefixes in sourceIPsDictionary:
-		#	print(sourceIPsDictionary[prefixes])
-		#	if prefixes['service'] == 'S3':
-		#		ipv4File.write(prefix['ip_prefix'] + ",\n")
+		with open("./config/sourceIPv4ranges.csv", "w") as ipv4File:
+			#print (sourceIPsDictionary['prefixes'])
+			for ipv4Item in sourceIPsDictionary['prefixes']:
+				#print(sourceIPsDictionary[ipv4Item'prefixes'])
+				if ipv4Item['service'] == 'S3':
+					ipv4File.write(ipv4Item['ip_prefix'] + ",\n")
 		# handle PIv6
-		#for ipv6_prefixes in sourceIPsDictionary:
-		#	if ipv6_prefixes['service'] == "S3":
-		#		ipv6File.write(prefix['ipv6_prefix'] + ",\n")
+		with open("./config/sourceIPv6ranges.csv", "w") as ipv6File:
+			for ipv6Item in sourceIPsDictionary['ipv6_prefixes']:
+				if ipv6Item['service'] == "S3":
+					ipv6File.write(ipv6Item['ipv6_prefix'] + ",\n")
 
 		# iterate through file, parse out IP addresses to files #
-		for line in sourceIPs:
-			if ipv4IdentString in line:
-				tempLine = line.replace(ipv4IdentString, "")
-				finalString = tempLine.replace(ipAddressTailString, ",")
-				ipv4File.write(finalString.strip() + "\n")
-			elif ipv6IdentString in line:
-				tempLine = line.replace(ipv6IdentString, "")
-				finalString = tempLine.replace(ipAddressTailString, ",")
-				ipv6File.write(finalString.strip() + "\n")
-	# close up all the files #
-	ipv4File.close()
-	ipv6File.close()
+		#for line in sourceIPs:
+		#	if ipv4IdentString in line:
+		#		tempLine = line.replace(ipv4IdentString, "")
+		#		finalString = tempLine.replace(ipAddressTailString, ",")
+		#		ipv4File.write(finalString.strip() + "\n")
+		#	elif ipv6IdentString in line:
+		#		tempLine = line.replace(ipv6IdentString, "")
+		#		finalString = tempLine.replace(ipAddressTailString, ",")
+		#		ipv6File.write(finalString.strip() + "\n")
 # end parseAmazonIPs #
 
 # short function that checks if an IP address is in a CIDR range.
