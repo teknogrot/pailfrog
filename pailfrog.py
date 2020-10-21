@@ -19,15 +19,14 @@ resultList = []							# an empty list to contain all the IP addresses which are 
 fileList = []							# an empty list to contain all files identified in the root of an S3 bucket.
 # global variable definition block ends #
 
-
 # string variable definition block ends #
-ipv4IdentString = "\"ip_prefix\": \""
-ipv6IdentString = "\"ipv6_prefix\": \""
-ipAddressTailString = "\","
+#ipv4IdentString = "\"ip_prefix\": \""
+#ipv6IdentString = "\"ipv6_prefix\": \""
+#ipAddressTailString = "\","
 httpString = "http://"
 S3BucketString = ".s3.amazonaws.com"
-keyLineStartString = "<Key>"
-keyLineEndString = "</Key>"
+#keyLineStartString = "<Key>"
+#keyLineEndString = "</Key>"
 # string variable definition block ends #
 
 # main function begins #
@@ -55,15 +54,16 @@ def main(argv):
 
 	# open sourceIPv4ranges.csv in read-only mode.
 	with open("./config/sourceIPv4ranges.csv", "r") as sourceIPs:
+		inRangeCheck = 0
 		for line in sourceIPs:
 			tempLine = line.replace(",\n", "")					# prune out the comma and newline from the line of the .csv,
 			currentRange = ipaddress.ip_network(tempLine)				# convert to IP address
 			if checkInRange(currentIPAddress, currentRange):
+				inRangeCheck = 1
 				resultList.append("Domain: \"" + testDomain + "\" is hosted in Amazon S3 at: " + currentIPAddress + "\n")
 				projectFolder = createFolder(testDomain, runTimeString)
-				print("Creating folder: " + projectFolder)
-				break
-		print("Domain " + testDomain + " is not hosted in Amazon S3. Skipping folder creation")
+		if inRangeCheck != 1:
+			print("Domain \"" + testDomain + "\" is not hosted in Amazon S3. Skipping folder creation")
 	# print out the domains which successfully resolved and check if the root is accessible.
 	for item in resultList:
 		print (item)
@@ -97,6 +97,7 @@ def main(argv):
 def createFolder(folderNameIn, timeStringIn):
 	directoryPath = "./output/" + folderNameIn + "_" + timeStringIn
 	permissions = 0o744
+	print("Creating folder: %s" % directoryPath)
 	try:
 		os.makedirs(directoryPath, permissions)
 	except OSError:
@@ -107,12 +108,9 @@ def createFolder(folderNameIn, timeStringIn):
 		return directoryPath
 # createFolder ends #
 
-
 # short function to ensure that the current S3 IP addresses are known to the program #
 def updateAmazonIPs():
 	response = requests.get("https://ip-ranges.amazonaws.com/ip-ranges.json")
-	#responseJsonified = response.json()
-	#sourceIPs.write(responseJsonified)
 	with open("./config/sourceIPs.json", "wb") as sourceIPs:
 		sourceIPs.write(response.content)
 	parseAmazonIPs()
@@ -123,14 +121,11 @@ def updateAmazonIPs():
 # needs logic to de-duplicate entries and properly process .json elements	#
 # to only use S3 ranges														#
 def parseAmazonIPs():
-	#sourceIPs = open("./config/sourceIPs.json", "r")
 	with open("./config/sourceIPs.json", "r") as sourceIPs:
 		sourceIPsDictionary = json.load(sourceIPs)
 		# handle IPv4
 		with open("./config/sourceIPv4ranges.csv", "w") as ipv4File:
-			#print (sourceIPsDictionary['prefixes'])
 			for ipv4Item in sourceIPsDictionary['prefixes']:
-				#print(sourceIPsDictionary[ipv4Item'prefixes'])
 				if ipv4Item['service'] == 'S3':
 					ipv4File.write(ipv4Item['ip_prefix'] + ",\n")
 		# handle PIv6
@@ -138,17 +133,6 @@ def parseAmazonIPs():
 			for ipv6Item in sourceIPsDictionary['ipv6_prefixes']:
 				if ipv6Item['service'] == "S3":
 					ipv6File.write(ipv6Item['ipv6_prefix'] + ",\n")
-
-		# iterate through file, parse out IP addresses to files #
-		#for line in sourceIPs:
-		#	if ipv4IdentString in line:
-		#		tempLine = line.replace(ipv4IdentString, "")
-		#		finalString = tempLine.replace(ipAddressTailString, ",")
-		#		ipv4File.write(finalString.strip() + "\n")
-		#	elif ipv6IdentString in line:
-		#		tempLine = line.replace(ipv6IdentString, "")
-		#		finalString = tempLine.replace(ipAddressTailString, ",")
-		#		ipv6File.write(finalString.strip() + "\n")
 # end parseAmazonIPs #
 
 # short function that checks if an IP address is in a CIDR range.
@@ -214,4 +198,3 @@ def harvestRoot(s3BucketIn, domainIn, directoryPathIn):
 # run main #
 if __name__ == "__main__":
     main(sys.argv[1:])
-
